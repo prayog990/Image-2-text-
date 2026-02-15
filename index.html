@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Multi-Image OCR</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .upload-section {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 30px 15px;
+            text-align: center;
+            background: #f8f9ff;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .upload-section:active {
+            background: #e8ecff;
+        }
+
+        .upload-section.dragover {
+            background: #d0d8ff;
+            border-color: #5a67d8;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 42px;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            font-size: 15px;
+            margin-bottom: 12px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin: 8px 5px;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            font-weight: 500;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #48bb78;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+        }
+
+        .preview-section {
+            margin-bottom: 15px;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 0 5px;
+        }
+
+        .preview-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .reorder-hint {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+        }
+
+        .preview-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e2e8f0;
+            cursor: move;
+            transition: transform 0.2s;
+        }
+
+        .preview-item:active {
+            transform: scale(0.98);
+        }
+
+        .preview-item.dragging {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
+
+        .preview-item img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .preview-item img:hover {
+            opacity: 0.9;
+        }
+
+        .preview-order {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            background: rgba(102, 126, 234, 0.95);
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .preview-item .remove-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(239, 68, 68, 0.95);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            -webkit-tap-highlight-color: transparent;
+            z-index: 2;
+        }
+
+        .preview-view-btn {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            background: rgba(102, 126, 234, 0.95);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            cursor: pointer;
+            font-size: 14px;
+            -webkit-tap-highlight-color: transparent;
+            z-index: 2;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            max-width: 90%;
+            max-height: 90%;
+            position: relative;
+            animation: modalZoom 0.3s ease-out;
+        }
+
+        @keyframes modalZoom {
+            from {
+                transform: scale(0.7);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .modal-img {
+            max-width: 100%;
+            max-height: 80vh;
+            border-radius: 12px;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.5);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            background: rgba(239, 68, 68, 0.95);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            font-size: 24px;
+            cursor: pointer;
+            font-weight: bold;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .modal-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            font-size: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            -webkit-tap-highlight-color: transparent;
+            transition: all 0.2s;
+        }
+
+        .modal-nav:active {
+            transform: translateY(-50%) scale(0.9);
+        }
+
+        .modal-nav.prev {
+            left: -60px;
+        }
+
+        .modal-nav.next {
+            right: -60px;
+        }
+
+        .modal-info {
+            position: absolute;
+            bottom: -40px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            font-size: 14px;
+        }
+
+        .modal-filename {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .modal-order {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .reorder-controls {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            display: flex;
+            gap: 4px;
+            z-index: 2;
+        }
+
+        .reorder-btn {
+            background: rgba(102, 126, 234, 0.95);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .progress-section {
+            margin: 20px 0;
+            display: none;
+        }
+
+        .overall-progress {
+            margin-bottom: 15px;
+        }
+
+        .progress-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 35px;
+            background: #e2e8f0;
+            border-radius: 18px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .current-file {
+            background: #fff3cd;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        .current-file-name {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .file-progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+
+        .file-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #fbbf24, #f59e0b);
+            transition: width 0.1s linear;
+            border-radius: 4px;
+        }
+
+        .result-section {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .result-textarea {
+            width: 100%;
+            min-height: 250px;
+            padding: 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-family: 'Noto Sans', 'Segoe UI', sans-serif;
+            font-size: 15px;
+            line-height: 1.8;
+            resize: vertical;
+            margin-bottom: 10px;
+            background: #fafafa;
+            color: #333;
+            letter-spacing: 0.3px;
+        }
+
+        .result-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+            padding: 15px;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-radius: 12px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .success-msg {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            display: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .loading-msg {
+            text-align: center;
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+            font-size: 14px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .upload-section {
+                padding: 25px 10px;
+            }
+
+            .btn {
+                padding: 12px 22px;
+                font-size: 14px;
+            }
+
+            .result-textarea {
+                font-size: 14px;
+                padding: 15px;
+            }
+
+            .modal-nav.prev {
+                left: 10px;
+            }
+
+            .modal-nav.next {
+                right: 10px;
+            }
+
+            .modal-close {
+                top: 10px;
+                right: 10px;
+            }
+
+            .modal-info {
+                bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 Multi-Image OCR</h1>
+        <p class="subtitle">Multiple images से text extract करें</p>
+
+        <div class="loading-msg" id="loadingMsg">⏳ Tesseract.js load हो रहा है...</div>
+
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-icon">📁</div>
+            <p class="upload-text">यहाँ tap करें या images select करें</p>
+            <input type="file" id="fileInput" accept="image/*" multiple>
+            <button class="btn" onclick="document.getElementById('fileInput').click()">
+                📷 Images चुनें
+            </button>
+        </div>
+
+        <div class="preview-section" id="previewSection" style="display:none;">
+            <div class="preview-header">
+                <span class="preview-title">Selected Images</span>
+                <span class="reorder-hint">↕️ Drag to reorder</span>
+            </div>
+            <div class="preview-grid" id="previewGrid"></div>
+        </div>
+
+        <div style="text-align: center;">
+            <button class="btn" id="processBtn" onclick="processImages()" disabled>
+                🚀 OCR Start करें
+            </button>
+            <button class="btn btn-danger" id="clearBtn" onclick="clearAll()" style="display:none;">
+                🗑️ Clear All
+            </button>
+        </div>
+
+        <div class="progress-section" id="progressSection">
+            <div class="overall-progress">
+                <div class="progress-label">Overall Progress</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="overallProgressFill">0%</div>
+                </div>
+            </div>
+            
+            <div class="current-file" id="currentFile">
+                <span class="current-file-name" id="currentFileName">Processing...</span>
+                <div class="progress-label">Current File Progress</div>
+                <div class="file-progress-bar">
+                    <div class="file-progress-fill" id="fileProgressFill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="result-section" id="resultSection">
+            <div class="success-msg" id="successMsg">✅ सभी images successfully process हो गईं!</div>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="imageCount">0</div>
+                    <div class="stat-label">Images</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="wordCount">0</div>
+                    <div class="stat-label">Words</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="charCount">0</div>
+                    <div class="stat-label">Characters</div>
+                </div>
+            </div>
+
+            <textarea class="result-textarea" id="resultText" placeholder="Extracted text यहाँ दिखेगा..."></textarea>
+            
+            <div style="text-align: center;">
+                <button class="btn btn-secondary" onclick="copyText()">
+                    📋 Copy
+                </button>
+                <button class="btn" onclick="downloadText()">
+                    💾 Download
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div class="modal" id="imageModal" onclick="closeModal(event)">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal(event)">×</button>
+            <button class="modal-nav prev" onclick="navigateModal(-1); event.stopPropagation();">‹</button>
+            <img class="modal-img" id="modalImage" src="" alt="Preview">
+            <button class="modal-nav next" onclick="navigateModal(1); event.stopPropagation();">›</button>
+            <div class="modal-info">
+                <div class="modal-filename" id="modalFilename"></div>
+                <div class="modal-order" id="modalOrder"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+    <script>
+        let selectedFiles = [];
+        let extractedTexts = [];
+        let tesseractReady = false;
+        let draggedIndex = null;
+        let currentModalIndex = 0;
+
+        // Wait for Tesseract to load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (typeof Tesseract !== 'undefined') {
+                    tesseractReady = true;
+                    document.getElementById('loadingMsg').style.display = 'none';
+                    console.log('Tesseract loaded successfully');
+                } else {
+                    document.getElementById('loadingMsg').textContent = '❌ Tesseract load नहीं हुआ। Page refresh करें।';
+                    document.getElementById('loadingMsg').style.background = '#f8d7da';
+                }
+            }, 1000);
+        });
+
+        const fileInput = document.getElementById('fileInput');
+        const uploadSection = document.getElementById('uploadSection');
+        const previewSection = document.getElementById('previewSection');
+        const previewGrid = document.getElementById('previewGrid');
+        const processBtn = document.getElementById('processBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const progressSection = document.getElementById('progressSection');
+        const resultSection = document.getElementById('resultSection');
+
+        // File input change handler
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // Drag and drop handlers for upload section
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+            const fileArray = Array.from(files);
+            
+            fileArray.forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    selectedFiles.push(file);
+                }
+            });
+
+            renderPreviews();
+            updateUI();
+        }
+
+        function renderPreviews() {
+            previewGrid.innerHTML = '';
+            previewSection.style.display = selectedFiles.length > 0 ? 'block' : 'none';
+            
+            selectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    addPreview(e.target.result, index, file.name);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function addPreview(src, index, fileName) {
+            const previewItem = document.createElement('div');
+            previewItem.className = 'preview-item';
+            previewItem.draggable = true;
+            previewItem.dataset.index = index;
+            previewItem.innerHTML = `
+                <img src="${src}" alt="${fileName}" onclick="openModal(${index}); event.stopPropagation();">
+                <div class="preview-order">${index + 1}</div>
+                <div class="reorder-controls">
+                    <button class="reorder-btn" onclick="moveImage(${index}, -1); event.stopPropagation();" title="Move Left">←</button>
+                    <button class="reorder-btn" onclick="moveImage(${index}, 1); event.stopPropagation();" title="Move Right">→</button>
+                </div>
+                <button class="preview-view-btn" onclick="openModal(${index}); event.stopPropagation();" title="View Full Size">👁</button>
+                <button class="remove-btn" onclick="removeImage(${index}); event.stopPropagation();">×</button>
+            `;
+            
+            // Drag events for reordering
+            previewItem.addEventListener('dragstart', handleDragStart);
+            previewItem.addEventListener('dragover', handleDragOver);
+            previewItem.addEventListener('drop', handleDrop);
+            previewItem.addEventListener('dragend', handleDragEnd);
+            
+            previewGrid.appendChild(previewItem);
+        }
+
+        function handleDragStart(e) {
+            draggedIndex = parseInt(e.target.closest('.preview-item').dataset.index);
+            e.target.closest('.preview-item').classList.add('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const dropIndex = parseInt(e.target.closest('.preview-item').dataset.index);
+            
+            if (draggedIndex !== null && draggedIndex !== dropIndex) {
+                const draggedFile = selectedFiles[draggedIndex];
+                selectedFiles.splice(draggedIndex, 1);
+                selectedFiles.splice(dropIndex, 0, draggedFile);
+                renderPreviews();
+            }
+        }
+
+        function handleDragEnd(e) {
+            e.target.closest('.preview-item').classList.remove('dragging');
+            draggedIndex = null;
+        }
+
+        function removeImage(index) {
+            selectedFiles.splice(index, 1);
+            renderPreviews();
+            updateUI();
+        }
+
+        function moveImage(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= selectedFiles.length) return;
+            
+            const file = selectedFiles[index];
+            selectedFiles.splice(index, 1);
+            selectedFiles.splice(newIndex, 0, file);
+            renderPreviews();
+        }
+
+        // Modal Functions
+        function openModal(index) {
+            currentModalIndex = index;
+            updateModalContent();
+            document.getElementById('imageModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(event) {
+            if (event.target.classList.contains('modal') || event.target.classList.contains('modal-close')) {
+                document.getElementById('imageModal').classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        function navigateModal(direction) {
+            currentModalIndex += direction;
+            if (currentModalIndex < 0) currentModalIndex = selectedFiles.length - 1;
+            if (currentModalIndex >= selectedFiles.length) currentModalIndex = 0;
+            updateModalContent();
+        }
+
+        function updateModalContent() {
+            const file = selectedFiles[currentModalIndex];
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('modalImage').src = e.target.result;
+                document.getElementById('modalFilename').textContent = file.name;
+                document.getElementById('modalOrder').textContent = `Image ${currentModalIndex + 1} of ${selectedFiles.length}`;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Keyboard navigation for modal
+        document.addEventListener('keydown', (e) => {
+            const modal = document.getElementById('imageModal');
+            if (modal.classList.contains('active')) {
+                if (e.key === 'Escape') {
+                    modal.classList.remove('active');
+                    document.body.style.overflow = '';
+                } else if (e.key === 'ArrowLeft') {
+                    navigateModal(-1);
+                } else if (e.key === 'ArrowRight') {
+                    navigateModal(1);
+                }
+            }
+        });
+
+        function updateUI() {
+            processBtn.disabled = selectedFiles.length === 0 || !tesseractReady;
+            clearBtn.style.display = selectedFiles.length > 0 ? 'inline-block' : 'none';
+        }
+
+        async function processImages() {
+            if (selectedFiles.length === 0 || !tesseractReady) return;
+
+            processBtn.disabled = true;
+            progressSection.style.display = 'block';
+            resultSection.style.display = 'none';
+            extractedTexts = [];
+
+            const totalImages = selectedFiles.length;
+
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const fileName = file.name;
+                
+                document.getElementById('currentFileName').textContent = `📄 ${fileName} (${i + 1}/${totalImages})`;
+                
+                try {
+                    const text = await extractTextFromImage(file, (progress) => {
+                        updateFileProgress(progress);
+                    });
+                    extractedTexts.push(text);
+                } catch (error) {
+                    console.error('Error processing image:', error);
+                    extractedTexts.push('');
+                }
+                
+                updateOverallProgress(i + 1, totalImages);
+            }
+
+            // Clean and merge all texts
+            const finalText = cleanAndMergeTexts(extractedTexts);
+            displayResults(finalText, totalImages);
+        }
+
+        async function extractTextFromImage(file, onProgress) {
+            try {
+                const result = await Tesseract.recognize(file, 'eng+hin', {
+                    logger: (m) => {
+                        if (m.status === 'recognizing text' && m.progress) {
+                            onProgress(m.progress);
+                        }
+                    }
+                });
+                return result.data.text || '';
+            } catch (error) {
+                console.error('OCR Error:', error);
+                return '';
+            }
+        }
+
+        function cleanAndMergeTexts(texts) {
+            // Merge all texts
+            let merged = texts.join(' ');
+
+            // Remove garbage characters
+            merged = merged.replace(/[|_~`]/g, ' ');
+
+            // Remove extra line breaks and replace with space
+            merged = merged.replace(/\n+/g, ' ');
+
+            // Remove extra spaces (multiple spaces to single space)
+            merged = merged.replace(/\s+/g, ' ');
+
+            // Trim leading and trailing spaces
+            merged = merged.trim();
+
+            return merged;
+        }
+
+        function displayResults(text, imageCount) {
+            progressSection.style.display = 'none';
+            resultSection.style.display = 'block';
+            document.getElementById('successMsg').style.display = 'block';
+            
+            document.getElementById('resultText').value = text;
+            document.getElementById('imageCount').textContent = imageCount;
+            
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+            document.getElementById('wordCount').textContent = words.length;
+            document.getElementById('charCount').textContent = text.length;
+
+            processBtn.disabled = false;
+            
+            // Scroll to results
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function updateOverallProgress(current, total) {
+            const percent = Math.round((current / total) * 100);
+            const fill = document.getElementById('overallProgressFill');
+            fill.style.width = percent + '%';
+            fill.textContent = percent + '%';
+        }
+
+        function updateFileProgress(progress) {
+            const percent = Math.round(progress * 100);
+            const fill = document.getElementById('fileProgressFill');
+            fill.style.width = percent + '%';
+        }
+
+        function copyText() {
+            const textarea = document.getElementById('resultText');
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                showFeedback(event.target, '✅ Copied!');
+            } catch (err) {
+                navigator.clipboard.writeText(textarea.value).then(() => {
+                    showFeedback(event.target, '✅ Copied!');
+                });
+            }
+        }
+
+        function showFeedback(btn, message) {
+            const originalText = btn.textContent;
+            btn.textContent = message;
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 2000);
+        }
+
+        function downloadText() {
+            const text = document.getElementById('resultText').value;
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ocr-text-${Date.now()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function clearAll() {
+            selectedFiles = [];
+            extractedTexts = [];
+            previewGrid.innerHTML = '';
+            previewSection.style.display = 'none';
+            progressSection.style.display = 'none';
+            resultSection.style.display = 'none';
+            fileInput.value = '';
+            updateUI();
+        }
+    </script>
+</body>
+</html>
